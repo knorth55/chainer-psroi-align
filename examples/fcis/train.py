@@ -69,8 +69,8 @@ def main():
     parser.add_argument('--lr', '-l', type=float, default=0.0005)
     parser.add_argument(
         '--lr-cooldown-factor', '-lcf', type=float, default=0.1)
-    parser.add_argument('--epoch', '-e', type=int, default=44)
-    parser.add_argument('--cooldown-epoch', '-ce', type=int, default=28)
+    parser.add_argument('--epoch', '-e', type=int, default=42)
+    parser.add_argument('--cooldown-epoch', '-ce', type=list, default=[28, 31])
     args = parser.parse_args()
 
     np.random.seed(args.seed)
@@ -124,7 +124,7 @@ def main():
     trainer.extend(
         chainer.training.extensions.ExponentialShift(
             'lr', args.lr_cooldown_factor, init=args.lr),
-        trigger=(args.cooldown_epoch, 'epoch'))
+        trigger=ManualScheduleTrigger(args.cooldown_epoch, 'epoch'))
 
     # interval
     log_interval = 100, 'iteration'
@@ -171,9 +171,7 @@ def main():
             test_iter, model.fcis,
             iou_thresh=0.5, use_07_metric=True,
             label_names=sbd_instance_segmentation_label_names),
-        trigger=ManualScheduleTrigger(
-            [len(train_dataset) * args.cooldown_epoch,
-             len(train_dataset) * args.epoch], 'iteration'))
+        trigger=ManualScheduleTrigger(args.cooldown_epoch, 'epoch'))
 
     trainer.extend(extensions.dump_graph('main/loss'))
 
