@@ -12,10 +12,11 @@ from chainercv.chainer_experimental.datasets.sliceable \
     import TransformDataset
 from chainercv.datasets import sbd_instance_segmentation_label_names
 from chainercv.datasets import SBDInstanceSegmentationDataset
-from chainercv.experimental.links import FCISResNet101
 from chainercv.experimental.links import FCISTrainChain
 from chainercv.extensions import InstanceSegmentationVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
+
+from psroi_align.links.model import FCISPSROIAlignResNet101
 
 from train import concat_examples
 from train import Transform
@@ -34,7 +35,7 @@ def main():
     parser.add_argument(
         '--lr-cooldown-factor', '-lcf', type=float, default=0.1)
     parser.add_argument('--epoch', '-e', type=int, default=42)
-    parser.add_argument('--cooldown-epoch', '-ce', type=int, default=28)
+    parser.add_argument('--cooldown-epoch', '-ce', type=list, default=[28, 31])
     args = parser.parse_args()
 
     # chainermn
@@ -44,7 +45,7 @@ def main():
     np.random.seed(args.seed)
 
     # model
-    fcis = FCISResNet101(
+    fcis = FCISPSROIAlignResNet101(
         n_fg_class=len(sbd_instance_segmentation_label_names),
         pretrained_model='imagenet', iter2=False)
     fcis.use_preset('evaluate')
@@ -72,7 +73,7 @@ def main():
 
     # optimizer
     optimizer = chainermn.create_multi_node_optimizer(
-        chainer.optimizers.MomentumSGD(lr=args.lr, momentum=0.9),
+        chainer.optimizers.MomentumSGD(lr=args.lr * comm.size, momentum=0.9),
         comm)
     optimizer.setup(model)
 
@@ -96,8 +97,8 @@ def main():
     # lr scheduler
     trainer.extend(
         chainer.training.extensions.ExponentialShift(
-            'lr', args.lr_cooldown_factor, init=args.lr),
-        trigger=(args.cooldown_epoch, 'epoch'))
+            'lr', args.lr_cooldown_factor, init=args.lr * comm.size),
+        trigger=ManualScheduleTrigger(args.cooldown_epoch, 'epoch'))
 
     if comm.rank == 0:
         # interval
@@ -143,9 +144,7 @@ def main():
                 test_iter, model.fcis,
                 iou_thresh=0.5, use_07_metric=True,
                 label_names=sbd_instance_segmentation_label_names),
-            trigger=ManualScheduleTrigger(
-                [len(train_dataset) * args.cooldown_epoch,
-                 len(train_dataset) * args.epoch], 'iteration'))
+            trigger=ManualScheduleTrigger(args.cooldown_epoch, 'epoch'))
 
         trainer.extend(extensions.dump_graph('main/loss'))
 
