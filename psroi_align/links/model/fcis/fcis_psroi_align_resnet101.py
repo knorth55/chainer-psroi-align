@@ -5,8 +5,6 @@ import chainer.functions as F
 import chainer.links as L
 from chainercv.experimental.links.model.fcis import FCIS
 from chainercv.links import Conv2DBNActiv
-from chainercv.links.model.faster_rcnn.region_proposal_network import \
-    RegionProposalNetwork
 from chainercv.links.model.faster_rcnn.utils.loc2bbox import loc2bbox
 from chainercv.links.model.resnet.resblock import ResBlock
 from chainercv.links import ResNet101
@@ -14,6 +12,7 @@ from chainercv import utils
 import numpy as np
 
 from psroi_align.functions import psroi_align_2d
+from psroi_align.links.model.fcis.region_proposal_network import RegionProposalNetwork
 
 
 class FCISPSROIAlignResNet101(FCIS):

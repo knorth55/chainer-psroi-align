@@ -1,6 +1,7 @@
 from __future__ import division
 
 import argparse
+import functools
 import numpy as np
 import six
 
@@ -15,7 +16,6 @@ from chainercv.chainer_experimental.datasets.sliceable \
     import TransformDataset
 from chainercv.datasets import coco_instance_segmentation_label_names
 from chainercv.datasets import COCOInstanceSegmentationDataset
-from chainercv.experimental.links import FCISTrainChain
 from chainercv.experimental.links.model.fcis.utils.proposal_target_creator \
     import ProposalTargetCreator
 from chainercv.extensions import InstanceSegmentationCOCOEvaluator
@@ -25,21 +25,37 @@ from chainercv.utils.mask.mask_to_bbox import mask_to_bbox
 import chainermn
 
 from psroi_align.links.model import FCISPSROIAlignResNet101
+from psroi_align.links.model import FCISTrainChain
 
 
-def concat_examples(batch, device=None):
-    # batch: img, mask, label, scale
+def concat_examples(batch, device=None, padding=None,
+                    indices_concat=None, indices_to_device=None):
     if len(batch) == 0:
         raise ValueError('batch is empty')
 
     first_elem = batch[0]
+
+    elem_size = len(first_elem)
+    if indices_concat is None:
+        indices_concat = range(elem_size)
+    if indices_to_device is None:
+        indices_to_device = range(elem_size)
+
     result = []
-    for i in six.moves.range(len(first_elem)):
-        array = _concat_arrays([example[i] for example in batch], None)
-        if i == 0:  # img
-            result.append(to_device(device, array))
-        else:
-            result.append(array)
+    if not isinstance(padding, tuple):
+        padding = [padding] * elem_size
+
+    for i in six.moves.range(elem_size):
+        res = [example[i] for example in batch]
+        if i in indices_concat:
+            res = _concat_arrays(res, padding[i])
+        if i in indices_to_device:
+            if i in indices_concat:
+                res = to_device(device, res)
+            else:
+                res = [to_device(device, r) for r in res]
+        result.append(res)
+
     return tuple(result)
 
 
@@ -125,7 +141,7 @@ def main():
         indices = None
     indices = chainermn.scatter_dataset(indices, comm, shuffle=True)
     train_dataset = train_dataset.slice[indices]
-    train_iter = chainer.iterators.SerialIterator(train_dataset, batch_size=1)
+    train_iter = chainer.iterators.SerialIterator(train_dataset, batch_size=2)
 
     if comm.rank == 0:
         test_iter = chainer.iterators.SerialIterator(
@@ -147,8 +163,15 @@ def main():
     model.fcis.extractor.conv1.disable_update()
     model.fcis.extractor.res2.disable_update()
 
+    converter = functools.partial(
+        concat_examples, padding=0,
+        # img, masks, labels, bboxes, scales
+        indices_concat=[0, 1, 2, 4],  # img, masks, labels, _, scales
+        indices_to_device=[0],  # img
+    )
+
     updater = chainer.training.updater.StandardUpdater(
-        train_iter, optimizer, converter=concat_examples,
+        train_iter, optimizer, converter=converter,
         device=device)
 
     trainer = chainer.training.Trainer(
@@ -164,7 +187,7 @@ def main():
         # interval
         log_interval = 100, 'iteration'
         plot_interval = 3000, 'iteration'
-        print_interval = 20, 'iteration'
+        print_interval = 10, 'iteration'
 
         # training extensions
         model_name = model.fcis.__class__.__name__
