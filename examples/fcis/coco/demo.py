@@ -19,8 +19,16 @@ def main():
     parser.add_argument('image')
     args = parser.parse_args()
 
-    proposal_creator_params = FCISPSROIAlignResNet101.proposal_creator_params
-    proposal_creator_params['min_size'] = 2
+    proposal_creator_params = {
+        'nms_thresh': 0.7,
+        'n_train_pre_nms': 12000,
+        'n_train_post_nms': 2000,
+        'n_test_pre_nms': 6000,
+        'n_test_post_nms': 1000,
+        'force_cpu_nms': False,
+        'min_size': 0
+    }
+
     model = FCISPSROIAlignResNet101(
         n_fg_class=len(coco_instance_segmentation_label_names),
         min_size=800, max_size=1333,
