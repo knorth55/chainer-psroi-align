@@ -167,7 +167,7 @@ def main():
         concat_examples, padding=0,
         # img, masks, labels, bboxes, scales
         indices_concat=[0, 1, 2, 4],  # img, masks, labels, _, scales
-        indices_to_device=[0],  # img
+        indices_to_device=[0],        # img
     )
 
     updater = chainer.training.updater.StandardUpdater(
