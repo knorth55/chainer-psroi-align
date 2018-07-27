@@ -89,6 +89,15 @@ class FCISPSROIAlignResNet101(FCIS):
         }
     }
     feat_stride = 16
+    proposal_creator_params = {
+        'nms_thresh': 0.7,
+        'n_train_pre_nms': 6000,
+        'n_train_post_nms': 300,
+        'n_test_pre_nms': 6000,
+        'n_test_post_nms': 300,
+        'force_cpu_nms': False,
+        'min_size': 16
+    }
 
     def __init__(
             self,
@@ -101,15 +110,7 @@ class FCISPSROIAlignResNet101(FCIS):
             loc_normalize_std=(0.2, 0.2, 0.5, 0.5),
             iter2=True,
             resnet_initialW=None, rpn_initialW=None, head_initialW=None,
-            proposal_creator_params={
-                'nms_thresh': 0.7,
-                'n_train_pre_nms': 6000,
-                'n_train_post_nms': 300,
-                'n_test_pre_nms': 6000,
-                'n_test_post_nms': 300,
-                'force_cpu_nms': False,
-                'min_size': 16
-            }):
+            proposal_creator_params=None):
         param, path = utils.prepare_pretrained_model(
             {'n_fg_class': n_fg_class}, pretrained_model, self._models)
 
@@ -117,6 +118,9 @@ class FCISPSROIAlignResNet101(FCIS):
             rpn_initialW = chainer.initializers.Normal(0.01)
         if resnet_initialW is None and pretrained_model:
             resnet_initialW = chainer.initializers.constant.Zero()
+        if proposal_creator_params is not None:
+            self.proposal_creator_params = proposal_creator_params
+
 
         extractor = ResNet101Extractor(
             initialW=resnet_initialW)
