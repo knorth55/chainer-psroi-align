@@ -10,8 +10,6 @@ import chainermn
 
 from chainercv.chainer_experimental.datasets.sliceable \
     import TransformDataset
-from chainercv.datasets import sbd_instance_segmentation_label_names
-from chainercv.datasets import SBDInstanceSegmentationDataset
 from chainercv.experimental.links import FCISTrainChain
 from chainercv.extensions import InstanceSegmentationVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
