@@ -12,7 +12,8 @@ import numpy as np
 
 from psroi_align.functions import psroi_align_2d
 from psroi_align.links.model.fcis.fcis import FCIS
-from psroi_align.links.model.fcis.region_proposal_network import RegionProposalNetwork
+from psroi_align.links.model.fcis.region_proposal_network \
+    import RegionProposalNetwork
 
 
 class FCISPSROIAlignResNet101(FCIS):
@@ -119,7 +120,6 @@ class FCISPSROIAlignResNet101(FCIS):
             resnet_initialW = chainer.initializers.constant.Zero()
         if proposal_creator_params is not None:
             self.proposal_creator_params = proposal_creator_params
-
 
         extractor = ResNet101Extractor(
             initialW=resnet_initialW)

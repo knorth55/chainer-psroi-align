@@ -169,7 +169,8 @@ class FCISTrainChain(chainer.Chain):
         gt_roi_locs = self.xp.concatenate(gt_roi_locs, axis=0)
 
         roi_ag_seg_scores, roi_ag_locs, roi_cls_scores, _, _ = self.fcis.head(
-            roi_features, sample_rois, sample_roi_indices, img_size, gt_roi_labels)
+            roi_features, sample_rois, sample_roi_indices,
+            img_size, gt_roi_labels)
 
         # RPN losses
         rpn_loc_loss = _fast_rcnn_loc_loss(
