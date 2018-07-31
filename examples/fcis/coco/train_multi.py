@@ -16,8 +16,6 @@ from chainercv.chainer_experimental.datasets.sliceable \
     import TransformDataset
 from chainercv.datasets import coco_instance_segmentation_label_names
 from chainercv.datasets import COCOInstanceSegmentationDataset
-from chainercv.experimental.links.model.fcis.utils.proposal_target_creator \
-    import ProposalTargetCreator
 from chainercv.extensions import InstanceSegmentationCOCOEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv import transforms
@@ -117,10 +115,7 @@ def main():
         pretrained_model='imagenet', iter2=False,
         proposal_creator_params=proposal_creator_params)
     fcis.use_preset('coco_evaluate')
-    proposal_target_creator = ProposalTargetCreator()
-    proposal_target_creator.neg_iou_thresh_lo = 0.0
-    model = FCISTrainChain(
-        fcis, proposal_target_creator=proposal_target_creator)
+    model = FCISTrainChain(fcis)
 
     chainer.cuda.get_device_from_id(device).use()
     model.to_gpu()
@@ -231,7 +226,8 @@ def main():
                 test_iter, model.fcis,
                 label_names=coco_instance_segmentation_label_names),
             trigger=ManualScheduleTrigger(
-                [len(train_dataset) * 12, len(train_dataset) * 15], 'iteration'))
+                [len(train_dataset) * 12,
+                 len(train_dataset) * 15], 'iteration'))
 
         trainer.extend(extensions.dump_graph('main/loss'))
 
