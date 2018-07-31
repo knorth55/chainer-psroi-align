@@ -1,12 +1,11 @@
 from __future__ import division
 
 import numpy as np
+import warnings
 
 import chainer
 from chainer.backends import cuda
 import chainer.functions as F
-from chainercv.links.model.faster_rcnn.faster_rcnn_train_chain \
-    import _fast_rcnn_loc_loss
 from chainercv.links.model.faster_rcnn.utils.anchor_target_creator \
     import AnchorTargetCreator
 
@@ -50,7 +49,7 @@ class FCISTrainChain(chainer.Chain):
 
     def __init__(
             self, fcis,
-            rpn_sigma=3.0, roi_sigma=1.0,
+            rpn_sigma=3.0, roi_sigma=1.0, n_ohem_sample=128,
             anchor_target_creator=AnchorTargetCreator(),
             proposal_target_creator=ProposalTargetCreator()
     ):
@@ -60,6 +59,7 @@ class FCISTrainChain(chainer.Chain):
             self.fcis = fcis
         self.rpn_sigma = rpn_sigma
         self.roi_sigma = roi_sigma
+        self.n_ohem_sample = n_ohem_sample
         self.mask_size = self.fcis.head.roi_size
 
         self.loc_normalize_mean = fcis.loc_normalize_mean
@@ -178,17 +178,10 @@ class FCISTrainChain(chainer.Chain):
         rpn_cls_loss = F.softmax_cross_entropy(rpn_scores, gt_rpn_labels)
 
         # Losses for outputs of the head
-        n_roi = roi_ag_locs.shape[0]
-        gt_roi_fg_labels = (gt_roi_labels > 0).astype(np.int)
-        roi_locs = roi_ag_locs[self.xp.arange(n_roi), gt_roi_fg_labels]
-
-        roi_loc_loss = _fast_rcnn_loc_loss(
-            roi_locs, gt_roi_locs, gt_roi_labels, self.roi_sigma)
-        roi_cls_loss = F.softmax_cross_entropy(roi_cls_scores, gt_roi_labels)
-        # normalize by every (valid and invalid) instances
-        roi_mask_loss = F.softmax_cross_entropy(
-            roi_ag_seg_scores, gt_roi_masks, normalize=False) \
-            * 10.0 / self.mask_size / self.mask_size
+        roi_loc_loss, roi_cls_loss, roi_mask_loss = _ohem_loss(
+            roi_ag_locs, roi_cls_scores, roi_ag_seg_scores,
+            gt_roi_locs, gt_roi_labels, gt_roi_masks,
+            self.n_ohem_sample, self.roi_sigma, self.mask_size)
 
         loss = rpn_loc_loss + rpn_cls_loss \
             + roi_loc_loss + roi_cls_loss + roi_mask_loss
@@ -202,3 +195,59 @@ class FCISTrainChain(chainer.Chain):
         }, self)
 
         return loss
+
+
+def _ohem_loss(
+        roi_ag_locs, roi_cls_scores, roi_ag_seg_scores,
+        gt_roi_locs, gt_roi_labels, gt_roi_masks,
+        n_ohem_sample, roi_sigma, mask_size):
+    xp = cuda.get_array_module(roi_ag_locs)
+    n_sample = roi_ag_locs.shape[0]
+    gt_roi_fg_labels = (gt_roi_labels > 0).astype(np.int)
+    roi_locs = roi_ag_locs[xp.arange(n_sample), gt_roi_fg_labels]
+    roi_loc_loss = _fast_rcnn_loc_loss(
+        roi_locs, gt_roi_locs, gt_roi_labels, roi_sigma, reduce='no')
+    roi_cls_loss = F.softmax_cross_entropy(
+        roi_cls_scores, gt_roi_labels, reduce='no')
+    # normalize by every (valid and invalid) instances
+    roi_mask_loss = F.softmax_cross_entropy(
+        roi_ag_seg_scores, gt_roi_masks, normalize=False, reduce='no') \
+        * 10.0 / mask_size / mask_size
+    assert roi_loc_loss.shape == roi_cls_loss.shape == roi_mask_loss.shape
+
+    n_ohem_sample = min(n_ohem_sample, n_sample)
+    loss = cuda.to_cpu(
+        roi_loc_loss.array + roi_cls_loss.array + roi_mask_loss.array)
+    indices = loss.argsort(axis=0)[::-1][:n_ohem_sample]
+    indices = cuda.to_gpu(indices)
+    roi_loc_loss = F.sum(roi_loc_loss[indices]) / n_ohem_sample
+    roi_cls_loss = F.sum(roi_cls_loss[indices]) / n_ohem_sample
+    roi_mask_loss = F.sum(roi_mask_loss[indices]) / n_ohem_sample
+
+    return roi_loc_loss, roi_cls_loss, roi_mask_loss
+
+
+def _smooth_l1_loss_base(x, t, in_weight, sigma):
+    sigma2 = sigma ** 2
+    diff = in_weight * (x - t)
+    abs_diff = F.absolute(diff)
+    flag = (abs_diff.array < (1. / sigma2)).astype(np.float32)
+
+    y = (flag * (sigma2 / 2.) * F.square(diff) +
+         (1 - flag) * (abs_diff - 0.5 / sigma2))
+    return F.sum(y, axis=1)
+
+
+def _fast_rcnn_loc_loss(pred_loc, gt_loc, gt_label, sigma, reduce='mean'):
+    xp = cuda.get_array_module(pred_loc)
+
+    in_weight = xp.zeros_like(gt_loc)
+    # Localization loss is calculated only for positive rois.
+    in_weight[gt_label > 0] = 1
+    loc_loss = _smooth_l1_loss_base(pred_loc, gt_loc, in_weight, sigma)
+    # Normalize by total number of negtive and positive rois.
+    if reduce == 'mean':
+        loc_loss = F.sum(loc_loss) / xp.sum(gt_label >= 0)
+    elif reduce != 'no':
+        warnings.warn('no reduce option: {}'.format(reduce))
+    return loc_loss
