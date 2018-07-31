@@ -5,13 +5,13 @@ import numpy as np
 import chainer
 from chainer.backends import cuda
 import chainer.functions as F
-
-from chainercv.experimental.links.model.fcis.utils.proposal_target_creator \
-    import ProposalTargetCreator
 from chainercv.links.model.faster_rcnn.faster_rcnn_train_chain \
     import _fast_rcnn_loc_loss
 from chainercv.links.model.faster_rcnn.utils.anchor_target_creator \
     import AnchorTargetCreator
+
+from psroi_align.links.model.fcis.utils.proposal_target_creator \
+    import ProposalTargetCreator
 
 
 class FCISTrainChain(chainer.Chain):
