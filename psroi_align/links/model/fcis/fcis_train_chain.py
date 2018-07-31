@@ -211,9 +211,9 @@ def _ohem_loss(
         roi_cls_scores, gt_roi_labels, reduce='no')
     # normalize by every (valid and invalid) instances
     roi_mask_loss = F.softmax_cross_entropy(
-        roi_ag_seg_scores, gt_roi_masks, normalize=False, reduce='no') \
+        roi_ag_seg_scores, gt_roi_masks, normalize=False, reduce='no')
+    roi_mask_loss = F.sum(roi_mask_loss, axis=(1, 2)) \
         * 10.0 / mask_size / mask_size
-    roi_mask_loss = F.sum(roi_mask_loss, axis=(1, 2))
     assert roi_loc_loss.shape == roi_cls_loss.shape == roi_mask_loss.shape
 
     n_ohem_sample = min(n_ohem_sample, n_sample)
