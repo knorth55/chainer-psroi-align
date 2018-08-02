@@ -136,7 +136,7 @@ def main():
         indices = None
     indices = chainermn.scatter_dataset(indices, comm, shuffle=True)
     train_dataset = train_dataset.slice[indices]
-    train_iter = chainer.iterators.SerialIterator(train_dataset, batch_size=2)
+    train_iter = chainer.iterators.SerialIterator(train_dataset, batch_size=1)
 
     if comm.rank == 0:
         test_iter = chainer.iterators.SerialIterator(
