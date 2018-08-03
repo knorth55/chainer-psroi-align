@@ -31,7 +31,7 @@ def main():
         n_fg_class=len(coco_instance_segmentation_label_names),
         min_size=800, max_size=1333,
         anchor_scales=(2, 4, 8, 16, 32),
-        pretrained_model=pretrained_model,
+        pretrained_model=args.pretrained_model,
         proposal_creator_params=proposal_creator_params)
 
     model.use_preset('coco_evaluate')
