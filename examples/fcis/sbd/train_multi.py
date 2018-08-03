@@ -29,7 +29,7 @@ def main():
     parser.add_argument(
         '--lr', '-l', type=float, default=0.0005,
         help='Default value is for 1 GPU.\n'
-             'The learning rate should be multiplied by the number of gpu')
+             'The learning rate will be multiplied by the number of gpu')
     parser.add_argument(
         '--lr-cooldown-factor', '-lcf', type=float, default=0.1)
     parser.add_argument('--epoch', '-e', type=int, default=42)

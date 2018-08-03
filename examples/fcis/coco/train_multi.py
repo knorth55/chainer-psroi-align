@@ -88,7 +88,7 @@ def main():
     parser.add_argument(
         '--lr', '-l', type=float, default=0.0005,
         help='Default value is for 1 GPU.\n'
-             'The learning rate should be multiplied by the number of gpu')
+             'The learning rate will be multiplied by the number of gpu')
     args = parser.parse_args()
 
     # chainermn
@@ -144,7 +144,7 @@ def main():
 
     # optimizer
     optimizer = chainermn.create_multi_node_optimizer(
-        chainer.optimizers.MomentumSGD(lr=args.lr, momentum=0.9),
+        chainer.optimizers.MomentumSGD(lr=args.lr * comm.size, momentum=0.9),
         comm)
     optimizer.setup(model)
 
@@ -175,7 +175,7 @@ def main():
     # lr scheduler
     trainer.extend(
         chainer.training.extensions.ExponentialShift(
-            'lr', 0.1, init=args.lr),
+            'lr', 0.1, init=args.lr * comm.size),
         trigger=ManualScheduleTrigger([12, 15], 'epoch'))
 
     if comm.rank == 0:
