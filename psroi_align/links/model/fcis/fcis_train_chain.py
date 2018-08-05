@@ -177,11 +177,23 @@ class FCISTrainChain(chainer.Chain):
             rpn_locs, gt_rpn_locs, gt_rpn_labels, self.rpn_sigma)
         rpn_cls_loss = F.softmax_cross_entropy(rpn_scores, gt_rpn_labels)
 
-        # Losses for outputs of the head
-        roi_loc_loss, roi_cls_loss, roi_mask_loss = _ohem_loss(
-            roi_ag_locs, roi_cls_scores, roi_ag_seg_scores,
-            gt_roi_locs, gt_roi_labels, gt_roi_masks,
-            self.n_ohem_sample, self.roi_sigma, self.mask_size)
+        if self.n_ohem_sample is None:
+            n_roi = roi_ag_locs.shape[0]
+            gt_roi_fg_labels = (gt_roi_labels > 0).astype(np.int)
+            roi_locs = roi_ag_locs[self.xp.arange(n_roi), gt_roi_fg_labels]
+            roi_loc_loss = _fast_rcnn_loc_loss(
+                roi_locs, gt_roi_locs, gt_roi_labels, self.roi_sigma)
+            roi_cls_loss = F.softmax_cross_entropy(
+                roi_cls_scores, gt_roi_labels)
+            roi_mask_loss = F.softmax_cross_entropy(
+                roi_ag_seg_scores, gt_roi_masks, normalize=False) \
+                * 10.0 / self.mask_size / self.mask_size
+        else:
+            # Losses for outputs of the head
+            roi_loc_loss, roi_cls_loss, roi_mask_loss = _ohem_loss(
+                roi_ag_locs, roi_cls_scores, roi_ag_seg_scores,
+                gt_roi_locs, gt_roi_labels, gt_roi_masks,
+                self.n_ohem_sample, self.roi_sigma, self.mask_size)
 
         loss = rpn_loc_loss + rpn_cls_loss \
             + roi_loc_loss + roi_cls_loss + roi_mask_loss

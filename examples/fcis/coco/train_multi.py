@@ -22,6 +22,8 @@ from chainercv import transforms
 from chainercv.utils.mask.mask_to_bbox import mask_to_bbox
 import chainermn
 
+from psroi_align.links.model.fcis.utils.proposal_target_creator \
+    import ProposalTargetCreator
 from psroi_align.links.model import FCISPSROIAlignResNet101
 from psroi_align.links.model import FCISTrainChain
 
@@ -89,6 +91,7 @@ def main():
         '--lr', '-l', type=float, default=0.0005,
         help='Default value is for 1 GPU.\n'
              'The learning rate will be multiplied by the number of gpu')
+    parser.add_argument('--no-ohem', action='store_true')
     args = parser.parse_args()
 
     # chainermn
@@ -115,7 +118,12 @@ def main():
         pretrained_model='imagenet', iter2=False,
         proposal_creator_params=proposal_creator_params)
     fcis.use_preset('coco_evaluate')
-    model = FCISTrainChain(fcis)
+    if args.no_ohem:
+        model = FCISTrainChain(
+            fcis, n_ohem_sample=None,
+            proposal_target_creator=ProposalTargetCreator(n_sample=128))
+    else:
+        model = FCISTrainChain(fcis)
 
     chainer.cuda.get_device_from_id(device).use()
     model.to_gpu()
